@@ -1,8 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'supabase_config.dart';
+import 'login_screen.dart';
 import 'widgets/vault_card_grid.dart';
 import 'models/ai_provider.dart';
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await SupabaseConfig.initialize();
   runApp(const EmoMultiApp());
 }
 
@@ -23,7 +28,40 @@ class EmoMultiApp extends StatelessWidget {
           surface: Color(0xFF0A0A14),
         ),
       ),
-      home: const VaultHomeScreen(),
+      home: const AuthGate(),
+    );
+  }
+}
+
+/// Decides whether to show the login screen or the vault home,
+/// based on current Supabase auth session (including guest/anonymous).
+class AuthGate extends StatefulWidget {
+  const AuthGate({super.key});
+
+  @override
+  State<AuthGate> createState() => _AuthGateState();
+}
+
+class _AuthGateState extends State<AuthGate> {
+  late final Stream<AuthState> _authStateStream;
+
+  @override
+  void initState() {
+    super.initState();
+    _authStateStream = supabase.auth.onAuthStateChange;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<AuthState>(
+      stream: _authStateStream,
+      builder: (context, snapshot) {
+        final session = supabase.auth.currentSession;
+        if (session != null) {
+          return const VaultHomeScreen();
+        }
+        return const LoginScreen();
+      },
     );
   }
 }
@@ -61,6 +99,15 @@ class VaultHomeScreen extends StatelessWidget {
               backgroundColor: const Color(0xFF0A0A14),
               pinned: true,
               expandedHeight: 90,
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.logout, color: Colors.white70),
+                  tooltip: 'Sign out',
+                  onPressed: () async {
+                    await supabase.auth.signOut();
+                  },
+                ),
+              ],
               flexibleSpace: FlexibleSpaceBar(
                 titlePadding: const EdgeInsets.only(left: 16, bottom: 14),
                 title: const Text(
