@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'supabase_config.dart';
-import 'vault_home_screen.dart'; // adjust import path if your file differs
+import 'main.dart'; // VaultHomeScreen lives in main.dart
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
