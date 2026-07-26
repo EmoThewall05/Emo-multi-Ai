@@ -4,6 +4,7 @@ import 'supabase_config.dart';
 import 'login_screen.dart';
 import 'widgets/vault_card_grid.dart';
 import 'widgets/app_sidebar.dart';
+import 'widgets/add_key_dialog.dart';
 import 'models/ai_provider.dart';
 
 Future<void> main() async {
@@ -71,23 +72,7 @@ class VaultHomeScreen extends StatelessWidget {
   const VaultHomeScreen({super.key});
 
   void _onKeyTap(BuildContext context, AiProvider provider) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF12121F),
-        title: Text(provider.name, style: const TextStyle(color: Colors.white)),
-        content: const Text(
-          'API key add cheyyan idam (next step-il form add cheyyum)',
-          style: TextStyle(color: Colors.white70),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('OK', style: TextStyle(color: Colors.purpleAccent)),
-          ),
-        ],
-      ),
-    );
+    showAddKeyDialog(context, provider);
   }
 
   @override
