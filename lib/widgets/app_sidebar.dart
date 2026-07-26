@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../main.dart';
+import '../supabase_config.dart';
 
 class AppSidebar extends StatefulWidget {
   const AppSidebar({super.key});
