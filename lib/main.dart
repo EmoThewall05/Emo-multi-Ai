@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'supabase_config.dart';
 import 'login_screen.dart';
 import 'widgets/vault_card_grid.dart';
+import 'widgets/app_sidebar.dart';
 import 'models/ai_provider.dart';
 
 Future<void> main() async {
@@ -93,8 +94,13 @@ class VaultHomeScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       body: SafeArea(
-        child: CustomScrollView(
-          slivers: [
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const AppSidebar(),
+            Expanded(
+              child: CustomScrollView(
+                slivers: [
             SliverAppBar(
               backgroundColor: const Color(0xFF0A0A14),
               pinned: true,
@@ -152,6 +158,9 @@ class VaultHomeScreen extends StatelessWidget {
             SliverToBoxAdapter(
               child: VaultCardGrid(
                 onAddKey: (provider) => _onKeyTap(context, provider),
+              ),
+            ),
+                ],
               ),
             ),
           ],
