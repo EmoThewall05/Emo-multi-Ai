@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../supabase_config.dart';
+import 'generic_add_key_dialog.dart';
 
 class AppSidebar extends StatefulWidget {
   final void Function(String category)? onCategoryTap;
@@ -12,7 +13,6 @@ class AppSidebar extends StatefulWidget {
 class _AppSidebarState extends State<AppSidebar> {
   int _balance = 0;
   bool _loadingBalance = true;
-  String? _email;
 
   static const _categories = [
     {'label': 'All', 'icon': Icons.grid_view_rounded, 'id': 'text'},
@@ -24,7 +24,6 @@ class _AppSidebarState extends State<AppSidebar> {
   @override
   void initState() {
     super.initState();
-    _email = supabase.auth.currentUser?.email;
     _fetchBalance();
   }
 
@@ -52,32 +51,45 @@ class _AppSidebarState extends State<AppSidebar> {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 240,
+      width: 76,
       color: const Color(0xFF0D0D18),
       child: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(vertical: 16),
+        padding: const EdgeInsets.symmetric(vertical: 14),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _buildLogoHeader(),
-            const SizedBox(height: 20),
-            _buildUserSection(),
-            const SizedBox(height: 20),
-            _sectionTitle('CATEGORIES'),
-            ..._categories.map(_buildCategoryTile),
-            const SizedBox(height: 20),
-            _sectionTitle('PAYMENT'),
-            _buildPaymentCard(),
-            const SizedBox(height: 20),
-            _sectionTitle('SYSTEM STATUS'),
-            _buildStatusTile('AI Engines', true),
-            _buildStatusTile('Database', true),
-            _buildStatusTile('Sync', true),
-            const SizedBox(height: 20),
-            _sectionTitle('QUICK ACTIONS'),
-            _buildActionTile(Icons.chat_bubble_outline, 'New Chat'),
-            _buildActionTile(Icons.code, 'Code Assist'),
-            _buildActionTile(Icons.search, 'Web Search'),
+            const SizedBox(height: 18),
+            const Divider(color: Colors.white12, height: 1, indent: 16, endIndent: 16),
+            const SizedBox(height: 10),
+            ..._categories.map(_buildCategoryIcon),
+            const SizedBox(height: 16),
+            const Divider(color: Colors.white12, height: 1, indent: 16, endIndent: 16),
+            const SizedBox(height: 10),
+            _buildBalancePill(),
+            const SizedBox(height: 10),
+            _buildIconAction(
+              icon: Icons.vpn_key_outlined,
+              label: 'Add Key',
+              color: Colors.purpleAccent,
+              onTap: () => showGenericAddKeyFlow(context),
+            ),
+            _buildIconAction(
+              icon: Icons.currency_bitcoin,
+              label: 'Cash Out',
+              color: Colors.amberAccent,
+              onTap: () {},
+            ),
+            const SizedBox(height: 16),
+            const Divider(color: Colors.white12, height: 1, indent: 16, endIndent: 16),
+            const SizedBox(height: 10),
+            _buildStatusDot(),
+            const SizedBox(height: 16),
+            const Divider(color: Colors.white12, height: 1, indent: 16, endIndent: 16),
+            const SizedBox(height: 10),
+            _buildIconAction(icon: Icons.chat_bubble_outline, label: 'New Chat', color: Colors.purpleAccent, onTap: () {}),
+            _buildIconAction(icon: Icons.code, label: 'Code', color: Colors.purpleAccent, onTap: () {}),
+            _buildIconAction(icon: Icons.search, label: 'Search', color: Colors.purpleAccent, onTap: () {}),
+            _buildIconAction(icon: Icons.logout, label: 'Sign out', color: Colors.white38, onTap: () => supabase.auth.signOut()),
           ],
         ),
       ),
@@ -85,143 +97,102 @@ class _AppSidebarState extends State<AppSidebar> {
   }
 
   Widget _buildLogoHeader() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Row(
-        children: [
-          Image.asset(
-            'assets/images/emomulti_butterfly.png',
-            height: 32,
-            errorBuilder: (context, error, stackTrace) =>
-                const Icon(Icons.auto_awesome, color: Colors.purpleAccent, size: 28),
-          ),
-          const SizedBox(width: 10),
-          const Text(
-            'EmoMulti',
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
-          ),
+    return Container(
+      width: 44,
+      height: 44,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: const LinearGradient(
+          colors: [Color(0xFFFF3EA5), Color(0xFF3EC6FF)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        boxShadow: [
+          BoxShadow(color: Colors.purpleAccent.withValues(alpha: 0.4), blurRadius: 12, spreadRadius: 1),
         ],
+      ),
+      padding: const EdgeInsets.all(6),
+      child: Image.asset(
+        'assets/images/emomulti_butterfly.png',
+        errorBuilder: (context, error, stackTrace) =>
+            const Icon(Icons.auto_awesome, color: Colors.white, size: 20),
       ),
     );
   }
 
-  Widget _buildUserSection() {
+  Widget _buildCategoryIcon(Map<String, dynamic> cat) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Row(
-        children: [
-          const CircleAvatar(
-            radius: 18,
-            backgroundColor: Colors.purpleAccent,
-            child: Icon(Icons.person, color: Colors.white, size: 18),
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Tooltip(
+        message: cat['label'] as String,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(10),
+          onTap: () => widget.onCategoryTap?.call(cat['id'] as String),
+          child: Padding(
+            padding: const EdgeInsets.all(8),
+            child: Icon(cat['icon'] as IconData, color: Colors.white70, size: 20),
           ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              _email ?? 'Guest',
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(color: Colors.white70, fontSize: 13),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _sectionTitle(String title) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-      child: Text(
-        title,
-        style: const TextStyle(
-          color: Colors.white38,
-          fontSize: 11,
-          fontWeight: FontWeight.bold,
-          letterSpacing: 1.0,
         ),
       ),
     );
   }
 
-  Widget _buildCategoryTile(Map<String, dynamic> cat) {
-    return ListTile(
-      dense: true,
-      leading: Icon(cat['icon'] as IconData, color: Colors.white70, size: 20),
-      title: Text(cat['label'] as String, style: const TextStyle(color: Colors.white70, fontSize: 14)),
-      onTap: () => widget.onCategoryTap?.call(cat['id'] as String),
-    );
-  }
-
-  Widget _buildPaymentCard() {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: const Color(0xFF12121F),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.purpleAccent.withOpacity(0.3)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Icon(Icons.monetization_on_outlined, color: Colors.amberAccent, size: 18),
-              const SizedBox(width: 6),
-              _loadingBalance
-                  ? const SizedBox(
-                      height: 12, width: 12,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.amberAccent),
-                    )
-                  : Text(
-                      '$_balance coins',
-                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
-                    ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          SizedBox(
-            width: double.infinity,
-            child: OutlinedButton(
-              onPressed: () {},
-              style: OutlinedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                side: const BorderSide(color: Colors.amberAccent),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-              ),
-              child: const Text('Cash Out', style: TextStyle(color: Colors.amberAccent, fontSize: 12)),
-            ),
-          ),
-        ],
+  Widget _buildBalancePill() {
+    return Tooltip(
+      message: '${_balance} coins',
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        margin: const EdgeInsets.symmetric(horizontal: 10),
+        decoration: BoxDecoration(
+          color: const Color(0xFF12121F),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: Colors.amberAccent.withValues(alpha: 0.4)),
+        ),
+        child: Column(
+          children: [
+            const Icon(Icons.monetization_on_outlined, color: Colors.amberAccent, size: 16),
+            const SizedBox(height: 2),
+            _loadingBalance
+                ? const SizedBox(
+                    height: 10, width: 10,
+                    child: CircularProgressIndicator(strokeWidth: 1.5, color: Colors.amberAccent),
+                  )
+                : Text('${_balance}', style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
+          ],
+        ),
       ),
     );
   }
 
-  Widget _buildStatusTile(String label, bool online) {
+  Widget _buildIconAction({
+    required IconData icon,
+    required String label,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      child: Row(
-        children: [
-          Container(
-            width: 8, height: 8,
-            decoration: BoxDecoration(
-              color: online ? Colors.greenAccent : Colors.redAccent,
-              shape: BoxShape.circle,
-            ),
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Tooltip(
+        message: label,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(10),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.all(8),
+            child: Icon(icon, color: color, size: 20),
           ),
-          const SizedBox(width: 8),
-          Text(label, style: const TextStyle(color: Colors.white70, fontSize: 13)),
-        ],
+        ),
       ),
     );
   }
 
-  Widget _buildActionTile(IconData icon, String label) {
-    return ListTile(
-      dense: true,
-      leading: Icon(icon, color: Colors.purpleAccent, size: 20),
-      title: Text(label, style: const TextStyle(color: Colors.white70, fontSize: 14)),
-      onTap: () {},
+  Widget _buildStatusDot() {
+    return const Tooltip(
+      message: 'All systems online',
+      child: Padding(
+        padding: EdgeInsets.symmetric(vertical: 4),
+        child: Icon(Icons.circle, color: Colors.greenAccent, size: 10),
+      ),
     );
   }
 }

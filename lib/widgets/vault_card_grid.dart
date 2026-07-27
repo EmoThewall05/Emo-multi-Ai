@@ -1,3 +1,4 @@
+import 'dart:math';
 import 'package:flutter/material.dart';
 import '../data/provider_data.dart';
 import '../models/ai_provider.dart';
@@ -22,20 +23,35 @@ class VaultCardGrid extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final categories = ['text', 'image', 'video'];
+    final randomMix = List<AiProvider>.from(aiProviders)..shuffle(Random(7));
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
-      children: categories.map((cat) {
-        final providers = aiProviders.where((p) => p.category == cat).toList();
-        return Container(
-          key: categorySectionKeys[cat],
-          child: _CategorySection(
-            title: categoryTitles[cat]!,
-            providers: providers,
-            onAddKey: onAddKey,
-            showAddCard: cat == categories.last,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 18, 16, 8),
+          child: Text(
+            'All Engines',
+            style: TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+              fontSize: 15,
+            ),
           ),
-        );
-      }).toList(),
+        ),
+        _ProviderGrid(providers: randomMix, onTap: onAddKey),
+        ...categories.map((cat) {
+          final providers = aiProviders.where((p) => p.category == cat).toList();
+          return Container(
+            key: categorySectionKeys[cat],
+            child: _CategorySection(
+              title: categoryTitles[cat]!,
+              providers: providers,
+              onTap: onAddKey,
+            ),
+          );
+        }),
+      ],
     );
   }
 }
@@ -43,19 +59,16 @@ class VaultCardGrid extends StatelessWidget {
 class _CategorySection extends StatelessWidget {
   final String title;
   final List<AiProvider> providers;
-  final Function(AiProvider) onAddKey;
-  final bool showAddCard;
+  final Function(AiProvider) onTap;
 
   const _CategorySection({
     required this.title,
     required this.providers,
-    required this.onAddKey,
-    this.showAddCard = false,
+    required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    final itemCount = providers.length + (showAddCard ? 1 : 0);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -70,26 +83,34 @@ class _CategorySection extends StatelessWidget {
             ),
           ),
         ),
-        GridView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 5,
-            crossAxisSpacing: 8,
-            mainAxisSpacing: 8,
-            childAspectRatio: 0.85,
-          ),
-          itemCount: itemCount,
-          itemBuilder: (context, index) {
-            if (index == providers.length && showAddCard) {
-              return _AddKeyCard(onTap: () {});
-            }
-            final provider = providers[index];
-            return _ProviderCard(provider: provider, onTap: () => onAddKey(provider));
-          },
-        ),
+        _ProviderGrid(providers: providers, onTap: onTap),
       ],
+    );
+  }
+}
+
+class _ProviderGrid extends StatelessWidget {
+  final List<AiProvider> providers;
+  final Function(AiProvider) onTap;
+  const _ProviderGrid({required this.providers, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 5,
+        crossAxisSpacing: 8,
+        mainAxisSpacing: 8,
+        childAspectRatio: 0.85,
+      ),
+      itemCount: providers.length,
+      itemBuilder: (context, index) {
+        final provider = providers[index];
+        return _ProviderCard(provider: provider, onTap: () => onTap(provider));
+      },
     );
   }
 }
@@ -105,61 +126,33 @@ class _ProviderCard extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.all(8),
-        decoration: BoxDecoration(
-          color: const Color(0xFF12121F),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: color.withOpacity(0.5)),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(getProviderIcon(provider), color: color, size: 20),
-            const SizedBox(height: 6),
-            Text(
-              provider.name,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 11),
-            ),
-            const Spacer(),
-            Row(
-              children: [
-                Container(width: 5, height: 5, decoration: const BoxDecoration(color: Colors.greenAccent, shape: BoxShape.circle)),
-                const SizedBox(width: 4),
-                const Text('ACTIVE', style: TextStyle(color: Colors.greenAccent, fontSize: 8)),
-              ],
-            )
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _AddKeyCard extends StatelessWidget {
-  final VoidCallback onTap;
-  const _AddKeyCard({required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        decoration: BoxDecoration(
-          border: Border.all(color: Colors.purpleAccent.withOpacity(0.6), width: 1.5),
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: const Center(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: const Color(0xFF12121F),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: color.withOpacity(0.5)),
+          ),
           child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(Icons.add_circle_outline, color: Colors.purpleAccent, size: 20),
-              SizedBox(height: 4),
-              Text('ADD NEW', style: TextStyle(color: Colors.purpleAccent, fontWeight: FontWeight.bold, fontSize: 9), textAlign: TextAlign.center),
+              Icon(getProviderIcon(provider), color: color, size: 20),
+              const SizedBox(height: 6),
+              Text(
+                provider.name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 11),
+              ),
+              const Spacer(),
+              Row(
+                children: [
+                  Container(width: 5, height: 5, decoration: const BoxDecoration(color: Colors.greenAccent, shape: BoxShape.circle)),
+                  const SizedBox(width: 4),
+                  const Text('ACTIVE', style: TextStyle(color: Colors.greenAccent, fontSize: 8)),
+                ],
+              )
             ],
           ),
-        ),
       ),
     );
   }
