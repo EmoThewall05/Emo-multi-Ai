@@ -42,11 +42,13 @@ class VaultCardGrid extends StatelessWidget {
         _ProviderGrid(providers: randomMix, onTap: onAddKey),
         ...categories.map((cat) {
           final providers = aiProviders.where((p) => p.category == cat).toList();
+      final displayProviders = List<AiProvider>.from(providers)..shuffle();
+      final limited = displayProviders.take(5).toList();
           return Container(
             key: categorySectionKeys[cat],
             child: _CategorySection(
               title: categoryTitles[cat]!,
-              providers: providers,
+              providers: limited,
               onTap: onAddKey,
             ),
           );
