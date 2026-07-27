@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'supabase_config.dart';
 import 'login_screen.dart';
 import 'widgets/vault_card_grid.dart';
+import 'widgets/profile_tab.dart';
 import 'widgets/app_sidebar.dart';
 import 'widgets/add_key_dialog.dart';
 import 'models/ai_provider.dart';
@@ -193,11 +194,7 @@ class _VaultHomeScreenState extends State<VaultHomeScreen> {
   }
 
   Widget _buildProfileTab() {
-    return const _PlaceholderTab(
-      icon: Icons.person_outline,
-      title: 'Profile',
-      subtitle: 'Email, phone, user data — coming soon',
-    );
+    return const ProfileTab();
   }
 
   Widget _buildBody() {
