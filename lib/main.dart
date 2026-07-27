@@ -1,3 +1,4 @@
+import 'widgets/profile_tab.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'supabase_config.dart';
