@@ -71,6 +71,9 @@ class _VaultCardGridState extends State<VaultCardGrid> {
             ),
           );
         }),
+
+        // bottom padding so the last section isn't flush with screen edge
+        const SizedBox(height: 24),
       ],
     );
   }
