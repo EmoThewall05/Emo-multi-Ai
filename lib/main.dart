@@ -77,6 +77,7 @@ class VaultHomeScreen extends StatefulWidget {
 
 class _VaultHomeScreenState extends State<VaultHomeScreen> {
   final ScrollController _scrollController = ScrollController();
+  int _selectedIndex = 0;
 
   void _onKeyTap(BuildContext context, AiProvider provider) {
     showAddKeyDialog(context, provider);
@@ -100,82 +101,193 @@ class _VaultHomeScreenState extends State<VaultHomeScreen> {
     super.dispose();
   }
 
+  Widget _buildHomeTab() {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        AppSidebar(onCategoryTap: _scrollToCategory),
+        Expanded(
+          child: CustomScrollView(
+            controller: _scrollController,
+            slivers: [
+              SliverAppBar(
+                backgroundColor: const Color(0xFF0A0A14),
+                pinned: true,
+                expandedHeight: 90,
+                actions: [
+                  IconButton(
+                    icon: const Icon(Icons.logout, color: Colors.white70),
+                    tooltip: 'Sign out',
+                    onPressed: () async {
+                      await supabase.auth.signOut();
+                    },
+                  ),
+                ],
+                flexibleSpace: FlexibleSpaceBar(
+                  titlePadding: const EdgeInsets.only(left: 16, bottom: 14),
+                  title: const Text(
+                    'EmoMulti AI Studio',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 20,
+                      color: Colors.white,
+                    ),
+                  ),
+                  background: Container(
+                    decoration: const BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [Color(0xFF1A0B2E), Color(0xFF0A0A14)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+                  child: Row(
+                    children: const [
+                      Icon(Icons.lock_outline, color: Colors.purpleAccent, size: 22),
+                      SizedBox(width: 8),
+                      Text(
+                        'SOVEREIGN AI VAULT',
+                        style: TextStyle(
+                          color: Colors.purpleAccent,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                          letterSpacing: 1.1,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              SliverToBoxAdapter(
+                child: VaultCardGrid(
+                  onAddKey: (provider) => _onKeyTap(context, provider),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildEmoCoinTab() {
+    return const _PlaceholderTab(
+      icon: Icons.currency_exchange,
+      title: 'Emo Coin',
+      subtitle: 'Convert via TheWall Web3 — coming soon',
+    );
+  }
+
+  Widget _buildCreateTab() {
+    return const _PlaceholderTab(
+      icon: Icons.auto_awesome,
+      title: 'Create',
+      subtitle: 'Templates — coming soon',
+    );
+  }
+
+  Widget _buildProfileTab() {
+    return const _PlaceholderTab(
+      icon: Icons.person_outline,
+      title: 'Profile',
+      subtitle: 'Email, phone, user data — coming soon',
+    );
+  }
+
+  Widget _buildBody() {
+    switch (_selectedIndex) {
+      case 1:
+        return _buildEmoCoinTab();
+      case 2:
+        return _buildCreateTab();
+      case 3:
+        return _buildProfileTab();
+      case 0:
+      default:
+        return _buildHomeTab();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: SafeArea(
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            AppSidebar(onCategoryTap: _scrollToCategory),
-            Expanded(
-              child: CustomScrollView(
-                controller: _scrollController,
-                slivers: [
-            SliverAppBar(
-              backgroundColor: const Color(0xFF0A0A14),
-              pinned: true,
-              expandedHeight: 90,
-              actions: [
-                IconButton(
-                  icon: const Icon(Icons.logout, color: Colors.white70),
-                  tooltip: 'Sign out',
-                  onPressed: () async {
-                    await supabase.auth.signOut();
-                  },
-                ),
-              ],
-              flexibleSpace: FlexibleSpaceBar(
-                titlePadding: const EdgeInsets.only(left: 16, bottom: 14),
-                title: const Text(
-                  'EmoMulti AI Studio',
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 20,
-                    color: Colors.white,
-                  ),
-                ),
-                background: Container(
-                  decoration: const BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [Color(0xFF1A0B2E), Color(0xFF0A0A14)],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                  ),
-                ),
-              ),
+      body: SafeArea(child: _buildBody()),
+      bottomNavigationBar: BottomNavigationBar(
+        backgroundColor: const Color(0xFF12121F),
+        selectedItemColor: Colors.purpleAccent,
+        unselectedItemColor: Colors.white54,
+        currentIndex: _selectedIndex,
+        type: BottomNavigationBarType.fixed,
+        onTap: (index) {
+          setState(() {
+            _selectedIndex = index;
+          });
+        },
+        items: const [
+          BottomNavigationBarItem(
+            icon: Icon(Icons.home_outlined),
+            activeIcon: Icon(Icons.home),
+            label: 'Home',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.currency_exchange),
+            label: 'Emo Coin',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.auto_awesome_outlined),
+            activeIcon: Icon(Icons.auto_awesome),
+            label: 'Create',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.person_outline),
+            activeIcon: Icon(Icons.person),
+            label: 'Profile',
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PlaceholderTab extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+
+  const _PlaceholderTab({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 56, color: Colors.purpleAccent),
+          const SizedBox(height: 16),
+          Text(
+            title,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
             ),
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
-                child: Row(
-                  children: const [
-                    Icon(Icons.lock_outline, color: Colors.purpleAccent, size: 22),
-                    SizedBox(width: 8),
-                    Text(
-                      'SOVEREIGN AI VAULT',
-                      style: TextStyle(
-                        color: Colors.purpleAccent,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
-                        letterSpacing: 1.1,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            SliverToBoxAdapter(
-              child: VaultCardGrid(
-                onAddKey: (provider) => _onKeyTap(context, provider),
-              ),
-            ),
-                ],
-              ),
-            ),
-          ],
-        ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            subtitle,
+            style: const TextStyle(color: Colors.white54, fontSize: 14),
+          ),
+        ],
       ),
     );
   }
