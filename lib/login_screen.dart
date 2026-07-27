@@ -17,7 +17,29 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _isLoading = false;
   String? _errorMessage;
 
+  bool _isValidEmail(String email) {
+    return RegExp(r'^[\w.\-]+@([\w\-]+\.)+[\w\-]{2,4}$').hasMatch(email);
+  }
+
   Future<void> _submit() async {
+    final email = _emailController.text.trim();
+    final password = _passwordController.text;
+
+    if (email.isEmpty || password.isEmpty) {
+      setState(() => _errorMessage = 'Please enter both email and password');
+      return;
+    }
+
+    if (!_isValidEmail(email)) {
+      setState(() => _errorMessage = 'Please enter a valid email address');
+      return;
+    }
+
+    if (password.length < 6) {
+      setState(() => _errorMessage = 'Password must be at least 6 characters');
+      return;
+    }
+
     setState(() {
       _isLoading = true;
       _errorMessage = null;
@@ -25,14 +47,21 @@ class _LoginScreenState extends State<LoginScreen> {
 
     try {
       if (_isSignUp) {
-        await supabase.auth.signUp(
-          email: _emailController.text.trim(),
-          password: _passwordController.text,
+        final res = await supabase.auth.signUp(
+          email: email,
+          password: password,
         );
+        if (res.session == null && mounted) {
+          setState(() {
+            _errorMessage = 'Account created! Please check your email to confirm before logging in.';
+            _isSignUp = false;
+          });
+          return;
+        }
       } else {
         await supabase.auth.signInWithPassword(
-          email: _emailController.text.trim(),
-          password: _passwordController.text,
+          email: email,
+          password: password,
         );
       }
       if (mounted) {
@@ -83,9 +112,6 @@ class _LoginScreenState extends State<LoginScreen> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                // Butterfly logo asset — place your logo file at
-                // assets/images/emomulti_butterfly.png and register it
-                // in pubspec.yaml under flutter > assets.
                 Image.asset(
                   'assets/images/emomulti_butterfly.png',
                   height: 140,
@@ -167,7 +193,10 @@ class _LoginScreenState extends State<LoginScreen> {
                 TextButton(
                   onPressed: _isLoading
                       ? null
-                      : () => setState(() => _isSignUp = !_isSignUp),
+                      : () => setState(() {
+                            _isSignUp = !_isSignUp;
+                            _errorMessage = null;
+                          }),
                   child: Text(
                     _isSignUp
                         ? 'Already have an account? Log in'
