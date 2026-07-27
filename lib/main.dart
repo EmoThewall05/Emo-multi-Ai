@@ -68,11 +68,36 @@ class _AuthGateState extends State<AuthGate> {
   }
 }
 
-class VaultHomeScreen extends StatelessWidget {
+class VaultHomeScreen extends StatefulWidget {
   const VaultHomeScreen({super.key});
+
+  @override
+  State<VaultHomeScreen> createState() => _VaultHomeScreenState();
+}
+
+class _VaultHomeScreenState extends State<VaultHomeScreen> {
+  final ScrollController _scrollController = ScrollController();
 
   void _onKeyTap(BuildContext context, AiProvider provider) {
     showAddKeyDialog(context, provider);
+  }
+
+  void _scrollToCategory(String category) {
+    final key = categorySectionKeys[category];
+    final ctx = key?.currentContext;
+    if (ctx != null) {
+      Scrollable.ensureVisible(
+        ctx,
+        duration: const Duration(milliseconds: 400),
+        curve: Curves.easeInOut,
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
   }
 
   @override
@@ -82,9 +107,10 @@ class VaultHomeScreen extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const AppSidebar(),
+            AppSidebar(onCategoryTap: _scrollToCategory),
             Expanded(
               child: CustomScrollView(
+                controller: _scrollController,
                 slivers: [
             SliverAppBar(
               backgroundColor: const Color(0xFF0A0A14),

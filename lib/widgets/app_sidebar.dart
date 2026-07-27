@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import '../supabase_config.dart';
 
 class AppSidebar extends StatefulWidget {
-  const AppSidebar({super.key});
+  final void Function(String category)? onCategoryTap;
+  const AppSidebar({super.key, this.onCategoryTap});
 
   @override
   State<AppSidebar> createState() => _AppSidebarState();
@@ -14,10 +15,10 @@ class _AppSidebarState extends State<AppSidebar> {
   String? _email;
 
   static const _categories = [
-    {'label': 'All', 'icon': Icons.grid_view_rounded},
-    {'label': 'Text', 'icon': Icons.chat_bubble_outline},
-    {'label': 'Image', 'icon': Icons.image_outlined},
-    {'label': 'Video', 'icon': Icons.videocam_outlined},
+    {'label': 'All', 'icon': Icons.grid_view_rounded, 'id': 'text'},
+    {'label': 'Text', 'icon': Icons.chat_bubble_outline, 'id': 'text'},
+    {'label': 'Image', 'icon': Icons.image_outlined, 'id': 'image'},
+    {'label': 'Video', 'icon': Icons.videocam_outlined, 'id': 'video'},
   ];
 
   @override
@@ -147,7 +148,7 @@ class _AppSidebarState extends State<AppSidebar> {
       dense: true,
       leading: Icon(cat['icon'] as IconData, color: Colors.white70, size: 20),
       title: Text(cat['label'] as String, style: const TextStyle(color: Colors.white70, fontSize: 14)),
-      onTap: () {},
+      onTap: () => widget.onCategoryTap?.call(cat['id'] as String),
     );
   }
 
