@@ -16,15 +16,36 @@ const Map<String, String> categoryTitles = {
   'video': 'Video Studio & Reels',
 };
 
-class VaultCardGrid extends StatelessWidget {
+class VaultCardGrid extends StatefulWidget {
   final Function(AiProvider) onAddKey;
   const VaultCardGrid({super.key, required this.onAddKey});
 
   @override
-  Widget build(BuildContext context) {
-    final categories = ['text', 'image', 'video'];
-    final randomMix = List<AiProvider>.from(aiProviders)..shuffle(Random(7));
+  State<VaultCardGrid> createState() => _VaultCardGridState();
+}
 
+class _VaultCardGridState extends State<VaultCardGrid> {
+  static const _categories = ['text', 'image', 'video'];
+  late final List<AiProvider> _randomMix;
+  late final Map<String, List<AiProvider>> _categoryProviders;
+
+  @override
+  void initState() {
+    super.initState();
+    // Shuffled once per app session (widget created fresh only on app restart).
+    _randomMix = List<AiProvider>.from(aiProviders)..shuffle(Random(7));
+    _categoryProviders = {
+      for (final cat in _categories)
+        cat: (List<AiProvider>.from(
+                aiProviders.where((p) => p.category == cat))
+              ..shuffle())
+            .take(5)
+            .toList(),
+    };
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -39,17 +60,14 @@ class VaultCardGrid extends StatelessWidget {
             ),
           ),
         ),
-        _ProviderGrid(providers: randomMix, onTap: onAddKey),
-        ...categories.map((cat) {
-          final providers = aiProviders.where((p) => p.category == cat).toList();
-      final displayProviders = List<AiProvider>.from(providers)..shuffle();
-      final limited = displayProviders.take(5).toList();
+        _ProviderGrid(providers: _randomMix, onTap: widget.onAddKey),
+        ..._categories.map((cat) {
           return Container(
             key: categorySectionKeys[cat],
             child: _CategorySection(
               title: categoryTitles[cat]!,
-              providers: limited,
-              onTap: onAddKey,
+              providers: _categoryProviders[cat]!,
+              onTap: widget.onAddKey,
             ),
           );
         }),
