@@ -40,10 +40,26 @@ class VaultCardGrid extends StatelessWidget {
           ),
         ),
         _ProviderGrid(providers: randomMix, onTap: onAddKey),
+
+        // --- DEBUG MARKER: confirms this code path runs ---
+        Container(
+          margin: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(12),
+          color: Colors.red,
+          child: Text(
+            'DEBUG: total providers=${aiProviders.length}, '
+            'text=${aiProviders.where((p) => p.category == "text").length}, '
+            'image=${aiProviders.where((p) => p.category == "image").length}, '
+            'video=${aiProviders.where((p) => p.category == "video").length}',
+            style: const TextStyle(color: Colors.white, fontSize: 12),
+          ),
+        ),
+        // --- END DEBUG MARKER ---
+
         ...categories.map((cat) {
           final providers = aiProviders.where((p) => p.category == cat).toList();
-      final displayProviders = List<AiProvider>.from(providers)..shuffle();
-      final limited = displayProviders.take(5).toList();
+          final displayProviders = List<AiProvider>.from(providers)..shuffle();
+          final limited = displayProviders.take(5).toList();
           return Container(
             key: categorySectionKeys[cat],
             child: _CategorySection(
@@ -53,6 +69,9 @@ class VaultCardGrid extends StatelessWidget {
             ),
           );
         }),
+
+        // bottom padding so the last section isn't flush with screen edge
+        const SizedBox(height: 24),
       ],
     );
   }
