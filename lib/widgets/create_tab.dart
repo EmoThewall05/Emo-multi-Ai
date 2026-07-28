@@ -59,6 +59,13 @@ const List<CreateTemplate> _templates = [
     color: Colors.pinkAccent,
     provider: 'Claude / GPT-4o / Gemini / Grok',
   ),
+  CreateTemplate(
+    title: 'Coding & Web Dev',
+    subtitle: 'Build apps, debug, websites & scripts',
+    icon: Icons.code_outlined,
+    color: Colors.greenAccent,
+    provider: 'Anthropic / Kimi / Meta / Grok / GPT-4o',
+  ),
 ];
 
 class CreateTab extends StatelessWidget {
