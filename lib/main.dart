@@ -1,5 +1,6 @@
 import 'widgets/profile_tab.dart';
 import 'widgets/emo_coin_tab.dart';
+import 'widgets/create_tab.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'supabase_config.dart';
@@ -184,11 +185,7 @@ class _VaultHomeScreenState extends State<VaultHomeScreen> {
   }
 
   Widget _buildCreateTab() {
-    return const _PlaceholderTab(
-      icon: Icons.auto_awesome,
-      title: 'Create',
-      subtitle: 'Templates — coming soon',
-    );
+    return const CreateTab();
   }
 
   Widget _buildProfileTab() {
