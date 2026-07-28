@@ -1,4 +1,5 @@
 import 'widgets/profile_tab.dart';
+import 'widgets/emo_coin_tab.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'supabase_config.dart';
@@ -179,11 +180,7 @@ class _VaultHomeScreenState extends State<VaultHomeScreen> {
   }
 
   Widget _buildEmoCoinTab() {
-    return const _PlaceholderTab(
-      icon: Icons.currency_exchange,
-      title: 'Emo Coin',
-      subtitle: 'Convert via TheWall Web3 — coming soon',
-    );
+    return const EmoCoinTab();
   }
 
   Widget _buildCreateTab() {
