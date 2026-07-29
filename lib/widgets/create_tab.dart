@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'chat_screen.dart';
+import 'chef_mode_screen.dart';
 
 class CreateTemplate {
   final String title;
@@ -98,8 +99,8 @@ class CreateTab extends StatelessWidget {
                 template: t,
                 onTap: () {
                   if (t.title == 'Chef Mode') {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Chef Mode — coming soon')),
+                    Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const ChefModeScreen()),
                     );
                   } else {
                     Navigator.of(context).push(
