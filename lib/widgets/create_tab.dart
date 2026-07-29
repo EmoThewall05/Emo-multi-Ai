@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'chat_screen.dart';
 
 class CreateTemplate {
   final String title;
@@ -96,9 +97,15 @@ class CreateTab extends StatelessWidget {
           ..._templates.map((t) => _TemplateCard(
                 template: t,
                 onTap: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('${t.title} — chat coming soon')),
-                  );
+                  if (t.title == 'Chef Mode') {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Chef Mode — coming soon')),
+                    );
+                  } else {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => ChatScreen(template: t)),
+                    );
+                  }
                 },
               )),
         ],
