@@ -1,10 +1,14 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'package:image_picker/image_picker.dart';
 
 class ChefChatMessage {
   final String text;
   final bool isUser;
+  final String? imagePath;
 
-  ChefChatMessage({required this.text, required this.isUser});
+  ChefChatMessage({required this.text, required this.isUser, this.imagePath});
 }
 
 class ChefModeScreen extends StatefulWidget {
@@ -18,9 +22,13 @@ class _ChefModeScreenState extends State<ChefModeScreen> {
   final TextEditingController _controller = TextEditingController();
   final List<ChefChatMessage> _messages = [];
   final ScrollController _scrollController = ScrollController();
+  final ImagePicker _picker = ImagePicker();
   bool _isLoading = false;
+  String? _activeFilter;
 
   static const Color chefColor = Colors.pinkAccent;
+  static const String _fridgeWorkerUrl =
+      'https://chef-mode-fridge.meradivin.workers.dev';
 
   final List<Map<String, dynamic>> _quickFilters = const [
     {'label': '10 min', 'icon': Icons.timer_outlined},
@@ -31,6 +39,10 @@ class _ChefModeScreenState extends State<ChefModeScreen> {
   void _sendMessage([String? presetText]) {
     final text = presetText ?? _controller.text.trim();
     if (text.isEmpty) return;
+
+    if (_quickFilters.any((f) => f['label'] == text)) {
+      setState(() => _activeFilter = text);
+    }
 
     setState(() {
       _messages.add(ChefChatMessage(text: text, isUser: true));
@@ -51,6 +63,104 @@ class _ChefModeScreenState extends State<ChefModeScreen> {
       });
       _scrollToBottom();
     });
+  }
+
+  Future<void> _pickFridgePhoto() async {
+    try {
+      final XFile? picked = await showModalBottomSheet<XFile?>(
+        context: context,
+        backgroundColor: const Color(0xFF12121F),
+        builder: (ctx) => SafeArea(
+          child: Wrap(
+            children: [
+              ListTile(
+                leading: const Icon(Icons.camera_alt_outlined, color: chefColor),
+                title: const Text('Take photo', style: TextStyle(color: Colors.white)),
+                onTap: () async {
+                  final img = await _picker.pickImage(
+                    source: ImageSource.camera,
+                    imageQuality: 70,
+                  );
+                  if (ctx.mounted) Navigator.of(ctx).pop(img);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.photo_outlined, color: chefColor),
+                title: const Text('Choose from gallery', style: TextStyle(color: Colors.white)),
+                onTap: () async {
+                  final img = await _picker.pickImage(
+                    source: ImageSource.gallery,
+                    imageQuality: 70,
+                  );
+                  if (ctx.mounted) Navigator.of(ctx).pop(img);
+                },
+              ),
+            ],
+          ),
+        ),
+      );
+
+      if (picked == null) return;
+
+      setState(() {
+        _messages.add(ChefChatMessage(
+          text: 'Fridge photo uploaded',
+          isUser: true,
+          imagePath: picked.path,
+        ));
+        _isLoading = true;
+      });
+      _scrollToBottom();
+
+      final bytes = await picked.readAsBytes();
+      final base64Image = base64Encode(bytes);
+
+      final response = await http.post(
+        Uri.parse(_fridgeWorkerUrl),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'image': base64Image,
+          if (_activeFilter != null) 'filter': _activeFilter,
+        }),
+      );
+
+      if (!mounted) return;
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final ingredients = (data['ingredients'] as List?)?.join(', ') ?? '';
+        final recipe = data['recipe'] ?? 'Could not generate a recipe.';
+
+        setState(() {
+          _messages.add(ChefChatMessage(
+            text: ingredients.isNotEmpty
+                ? 'Detected: $ingredients\n\n$recipe'
+                : recipe,
+            isUser: false,
+          ));
+          _isLoading = false;
+        });
+      } else {
+        setState(() {
+          _messages.add(ChefChatMessage(
+            text: 'Fridge photo analysis failed. Please try again.',
+            isUser: false,
+          ));
+          _isLoading = false;
+        });
+      }
+      _scrollToBottom();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        _messages.add(ChefChatMessage(
+          text: 'Error analyzing fridge photo: $e',
+          isUser: false,
+        ));
+      });
+      _scrollToBottom();
+    }
   }
 
   void _scrollToBottom() {
@@ -116,12 +226,8 @@ class _ChefModeScreenState extends State<ChefModeScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.camera_alt_outlined, color: chefColor),
-            tooltip: 'Fridge photo (coming soon)',
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Fridge photo upload — coming soon')),
-              );
-            },
+            tooltip: 'Fridge photo',
+            onPressed: _pickFridgePhoto,
           ),
           IconButton(
             icon: const Icon(Icons.mic_none_outlined, color: chefColor),
@@ -146,12 +252,16 @@ class _ChefModeScreenState extends State<ChefModeScreen> {
                 separatorBuilder: (_, __) => const SizedBox(width: 8),
                 itemBuilder: (context, index) {
                   final f = _quickFilters[index];
+                  final isActive = _activeFilter == f['label'];
                   return ActionChip(
                     avatar: Icon(f['icon'] as IconData, size: 16, color: chefColor),
                     label: Text(f['label'] as String,
                         style: const TextStyle(color: Colors.white, fontSize: 12.5)),
-                    backgroundColor: chefColor.withOpacity(0.12),
-                    side: BorderSide(color: chefColor.withOpacity(0.35)),
+                    backgroundColor: isActive
+                        ? chefColor.withOpacity(0.35)
+                        : chefColor.withOpacity(0.12),
+                    side: BorderSide(
+                        color: chefColor.withOpacity(isActive ? 0.8 : 0.35)),
                     onPressed: () => _sendMessage(f['label'] as String),
                   );
                 },
