@@ -1,5 +1,6 @@
 import 'widgets/profile_tab.dart';
 import 'widgets/emo_coin_tab.dart';
+import 'widgets/community_tab.dart';
 import 'widgets/create_tab.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -192,6 +193,10 @@ class _VaultHomeScreenState extends State<VaultHomeScreen> {
     return const ProfileTab();
   }
 
+  Widget _buildCommunityTab() {
+    return const CommunityTab();
+  }
+
   Widget _buildBody() {
     switch (_selectedIndex) {
       case 1:
@@ -200,6 +205,8 @@ class _VaultHomeScreenState extends State<VaultHomeScreen> {
         return _buildCreateTab();
       case 3:
         return _buildProfileTab();
+      case 4:
+        return _buildCommunityTab();
       case 0:
       default:
         return _buildHomeTab();
@@ -240,6 +247,11 @@ class _VaultHomeScreenState extends State<VaultHomeScreen> {
             icon: Icon(Icons.person_outline),
             activeIcon: Icon(Icons.person),
             label: 'Profile',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.groups_outlined),
+            activeIcon: Icon(Icons.groups),
+            label: 'Community',
           ),
         ],
       ),
