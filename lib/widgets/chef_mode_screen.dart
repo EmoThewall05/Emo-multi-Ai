@@ -1,7 +1,11 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
+import 'package:record/record.dart';
+import 'package:audioplayers/audioplayers.dart';
+import 'package:path_provider/path_provider.dart';
 
 class ChefChatMessage {
   final String text;
@@ -23,12 +27,18 @@ class _ChefModeScreenState extends State<ChefModeScreen> {
   final List<ChefChatMessage> _messages = [];
   final ScrollController _scrollController = ScrollController();
   final ImagePicker _picker = ImagePicker();
+  final AudioRecorder _audioRecorder = AudioRecorder();
+  final AudioPlayer _audioPlayer = AudioPlayer();
   bool _isLoading = false;
+  bool _isRecording = false;
+  bool _isSpeaking = false;
   String? _activeFilter;
 
   static const Color chefColor = Colors.pinkAccent;
   static const String _fridgeWorkerUrl =
       'https://chef-mode-fridge.meradivin.workers.dev';
+  static const String _voiceWorkerUrl =
+      'https://chef-mode-voice.meradivin.workers.dev';
 
   final List<Map<String, dynamic>> _quickFilters = const [
     {'label': '10 min', 'icon': Icons.timer_outlined},
@@ -163,6 +173,138 @@ class _ChefModeScreenState extends State<ChefModeScreen> {
     }
   }
 
+  // ===== Voice mode: recording =====
+
+  Future<void> _toggleRecording() async {
+    if (_isRecording) {
+      await _stopRecordingAndTranscribe();
+    } else {
+      await _startRecording();
+    }
+  }
+
+  Future<void> _startRecording() async {
+    try {
+      if (await _audioRecorder.hasPermission()) {
+        final dir = await getTemporaryDirectory();
+        final path =
+            '${dir.path}/chef_voice_${DateTime.now().millisecondsSinceEpoch}.m4a';
+
+        await _audioRecorder.start(
+          const RecordConfig(encoder: AudioEncoder.aacLc),
+          path: path,
+        );
+
+        setState(() => _isRecording = true);
+      } else {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Microphone permission is required')),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not start recording: $e')),
+      );
+    }
+  }
+
+  Future<void> _stopRecordingAndTranscribe() async {
+    try {
+      final path = await _audioRecorder.stop();
+      setState(() => _isRecording = false);
+
+      if (path == null) return;
+
+      setState(() => _isLoading = true);
+
+      final file = File(path);
+      final bytes = await file.readAsBytes();
+      final base64Audio = base64Encode(bytes);
+
+      final response = await http.post(
+        Uri.parse('$_voiceWorkerUrl/listen'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'audio': base64Audio}),
+      );
+
+      if (!mounted) return;
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final text = (data['text'] as String?)?.trim() ?? '';
+
+        setState(() => _isLoading = false);
+
+        if (text.isNotEmpty) {
+          _sendMessage(text);
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Could not hear anything. Try again.')),
+          );
+        }
+      } else {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Voice transcription failed. Please try again.')),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error transcribing voice: $e')),
+      );
+    }
+  }
+
+  // ===== Voice mode: text-to-speech playback =====
+
+  Future<void> _speakText(String text) async {
+    if (_isSpeaking) {
+      await _audioPlayer.stop();
+      setState(() => _isSpeaking = false);
+      return;
+    }
+
+    try {
+      setState(() => _isSpeaking = true);
+
+      final response = await http.post(
+        Uri.parse('$_voiceWorkerUrl/speak'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'text': text}),
+      );
+
+      if (response.statusCode == 200) {
+        final dir = await getTemporaryDirectory();
+        final path =
+            '${dir.path}/chef_speak_${DateTime.now().millisecondsSinceEpoch}.mp3';
+        final file = File(path);
+        await file.writeAsBytes(response.bodyBytes);
+
+        await _audioPlayer.play(DeviceFileSource(path));
+
+        _audioPlayer.onPlayerComplete.listen((event) {
+          if (mounted) setState(() => _isSpeaking = false);
+        });
+      } else {
+        if (!mounted) return;
+        setState(() => _isSpeaking = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not generate speech. Please try again.')),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isSpeaking = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error playing speech: $e')),
+      );
+    }
+  }
+
   void _scrollToBottom() {
     Future.delayed(const Duration(milliseconds: 100), () {
       if (_scrollController.hasClients) {
@@ -179,6 +321,8 @@ class _ChefModeScreenState extends State<ChefModeScreen> {
   void dispose() {
     _controller.dispose();
     _scrollController.dispose();
+    _audioRecorder.dispose();
+    _audioPlayer.dispose();
     super.dispose();
   }
 
@@ -230,13 +374,12 @@ class _ChefModeScreenState extends State<ChefModeScreen> {
             onPressed: _pickFridgePhoto,
           ),
           IconButton(
-            icon: const Icon(Icons.mic_none_outlined, color: chefColor),
-            tooltip: 'Voice mode (coming soon)',
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Voice mode — coming soon')),
-              );
-            },
+            icon: Icon(
+              _isRecording ? Icons.stop_circle_outlined : Icons.mic_none_outlined,
+              color: _isRecording ? Colors.redAccent : chefColor,
+            ),
+            tooltip: _isRecording ? 'Stop recording' : 'Voice mode',
+            onPressed: _toggleRecording,
           ),
         ],
       ),
@@ -268,6 +411,19 @@ class _ChefModeScreenState extends State<ChefModeScreen> {
               ),
             ),
           ),
+          if (_isRecording)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.fiber_manual_record, color: Colors.redAccent, size: 12),
+                  const SizedBox(width: 6),
+                  Text('Listening... tap mic again to stop',
+                      style: TextStyle(color: chefColor.withOpacity(0.9), fontSize: 12)),
+                ],
+              ),
+            ),
           Expanded(
             child: _messages.isEmpty
                 ? const Center(
@@ -308,9 +464,39 @@ class _ChefModeScreenState extends State<ChefModeScreen> {
                                   : Colors.white10,
                             ),
                           ),
-                          child: Text(
-                            msg.text,
-                            style: const TextStyle(color: Colors.white, fontSize: 14),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                msg.text,
+                                style: const TextStyle(color: Colors.white, fontSize: 14),
+                              ),
+                              if (!msg.isUser) ...[
+                                const SizedBox(height: 6),
+                                GestureDetector(
+                                  onTap: () => _speakText(msg.text),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        _isSpeaking
+                                            ? Icons.stop_circle_outlined
+                                            : Icons.volume_up_outlined,
+                                        size: 16,
+                                        color: chefColor,
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        _isSpeaking ? 'Stop' : 'Listen',
+                                        style: TextStyle(
+                                            color: chefColor, fontSize: 11.5),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ],
                           ),
                         ),
                       );
