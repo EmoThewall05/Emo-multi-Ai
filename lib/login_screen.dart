@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'widgets/scratch_reveal_butterfly.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'supabase_config.dart';
 import 'main.dart'; // VaultHomeScreen lives in main.dart
@@ -112,8 +113,8 @@ class _LoginScreenState extends State<LoginScreen> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Image.asset(
-                  'assets/images/emomulti_butterfly.png',
+                ScratchRevealButterfly(
+                  assetPath: 'assets/images/emomulti_butterfly.png',
                   height: 140,
                   errorBuilder: (context, error, stackTrace) =>
                       const Icon(Icons.auto_awesome, size: 100, color: Colors.purpleAccent),
