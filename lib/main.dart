@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'supabase_config.dart';
 import 'login_screen.dart';
+import 'splash_screen.dart';
 import 'widgets/vault_card_grid.dart';
 import 'widgets/profile_tab.dart';
 import 'widgets/app_sidebar.dart';
@@ -35,7 +36,7 @@ class EmoMultiApp extends StatelessWidget {
           surface: Color(0xFF0A0A14),
         ),
       ),
-      home: const AuthGate(),
+      home: const SplashScreen(),
     );
   }
 }
