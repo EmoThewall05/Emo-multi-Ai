@@ -1,16 +1,83 @@
 import 'package:flutter/material.dart';
 import '../supabase_config.dart';
 import 'generic_add_key_dialog.dart';
+import 'add_key_dialog.dart';
+import '../models/ai_provider.dart';
+import '../data/provider_data.dart';
 
 class AppSidebar extends StatefulWidget {
   final void Function(String category)? onCategoryTap;
-  const AppSidebar({super.key, this.onCategoryTap});
+  final void Function(int index)? onTabSwitch;
+  const AppSidebar({super.key, this.onCategoryTap, this.onTabSwitch});
 
   @override
   State<AppSidebar> createState() => _AppSidebarState();
 }
 
 class _AppSidebarState extends State<AppSidebar> {
+  void _showProviderSearch(BuildContext context) {
+    String query = '';
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setDialogState) {
+            final filtered = query.isEmpty
+                ? aiProviders
+                : aiProviders.where((p) => p.name.toLowerCase().contains(query.toLowerCase())).toList();
+            return AlertDialog(
+              backgroundColor: const Color(0xFF12121F),
+              title: const Text('Search Providers', style: TextStyle(color: Colors.white)),
+              content: SizedBox(
+                width: double.maxFinite,
+                height: 400,
+                child: Column(
+                  children: [
+                    TextField(
+                      autofocus: true,
+                      style: const TextStyle(color: Colors.white),
+                      decoration: const InputDecoration(
+                        hintText: 'Search AI providers...',
+                        hintStyle: TextStyle(color: Colors.white38),
+                        prefixIcon: Icon(Icons.search, color: Colors.purpleAccent),
+                      ),
+                      onChanged: (v) => setDialogState(() => query = v),
+                    ),
+                    const SizedBox(height: 12),
+                    Expanded(
+                      child: filtered.isEmpty
+                          ? const Center(
+                              child: Text('No providers found', style: TextStyle(color: Colors.white38)),
+                            )
+                          : ListView.builder(
+                              itemCount: filtered.length,
+                              itemBuilder: (_, i) {
+                                final p = filtered[i];
+                                return ListTile(
+                                  leading: Icon(Icons.smart_toy_outlined, color: Color(p.colorValue)),
+                                  title: Text(p.name, style: const TextStyle(color: Colors.white)),
+                                  subtitle: Text(p.category, style: const TextStyle(color: Colors.white38, fontSize: 12)),
+                                  onTap: () {
+                                    Navigator.of(ctx).pop();
+                                    showAddKeyDialog(context, p);
+                                  },
+                                );
+                              },
+                            ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Close')),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
   int _balance = 0;
   bool _loadingBalance = true;
 
@@ -77,7 +144,7 @@ class _AppSidebarState extends State<AppSidebar> {
               icon: Icons.currency_bitcoin,
               label: 'Cash Out',
               color: Colors.amberAccent,
-              onTap: () {},
+              onTap: () => widget.onTabSwitch?.call(1),
             ),
             const SizedBox(height: 16),
             const Divider(color: Colors.white12, height: 1, indent: 16, endIndent: 16),
@@ -86,9 +153,9 @@ class _AppSidebarState extends State<AppSidebar> {
             const SizedBox(height: 16),
             const Divider(color: Colors.white12, height: 1, indent: 16, endIndent: 16),
             const SizedBox(height: 10),
-            _buildIconAction(icon: Icons.chat_bubble_outline, label: 'New Chat', color: Colors.purpleAccent, onTap: () {}),
+            _buildIconAction(icon: Icons.chat_bubble_outline, label: 'New Chat', color: Colors.purpleAccent, onTap: () => widget.onTabSwitch?.call(2)),
             _buildIconAction(icon: Icons.code, label: 'Code', color: Colors.purpleAccent, onTap: () {}),
-            _buildIconAction(icon: Icons.search, label: 'Search', color: Colors.purpleAccent, onTap: () {}),
+            _buildIconAction(icon: Icons.search, label: 'Search', color: Colors.purpleAccent, onTap: () => _showProviderSearch(context)),
             _buildIconAction(icon: Icons.logout, label: 'Sign out', color: Colors.white38, onTap: () => supabase.auth.signOut()),
           ],
         ),

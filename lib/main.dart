@@ -110,7 +110,10 @@ class _VaultHomeScreenState extends State<VaultHomeScreen> {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        AppSidebar(onCategoryTap: _scrollToCategory),
+        AppSidebar(
+          onCategoryTap: _scrollToCategory,
+          onTabSwitch: (index) => setState(() => _selectedIndex = index),
+        ),
         Expanded(
           child: CustomScrollView(
             controller: _scrollController,
