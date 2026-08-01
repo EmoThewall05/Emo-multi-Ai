@@ -1,4 +1,5 @@
 import 'dart:math';
+import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -19,62 +20,41 @@ class ScratchRevealButterfly extends StatefulWidget {
   State<ScratchRevealButterfly> createState() => _ScratchRevealButterflyState();
 }
 
+class _Particle {
+  final Offset start;
+  final Offset target;
+  final Color color;
+  final double radius;
+  final double stagger;
+
+  _Particle({
+    required this.start,
+    required this.target,
+    required this.color,
+    required this.radius,
+    required this.stagger,
+  });
+}
+
 class _ScratchRevealButterflyState extends State<ScratchRevealButterfly>
     with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   ui.Image? _image;
   Object? _error;
-  late List<Path> _strokes;
-  late List<double> _staggerStart;
+  List<_Particle>? _particles;
+
+  static const int _particleCount = 450;
+  static const double _assembleEnd = 0.82;
 
   @override
   void initState() {
     super.initState();
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1700),
+      duration: const Duration(milliseconds: 2000),
     );
-    _generateStrokes();
     _loadImage();
     _controller.forward();
-  }
-
-  void _generateStrokes() {
-    final size = widget.height;
-    final rnd = Random(7);
-    const strokeCount = 16;
-    _strokes = [];
-    _staggerStart = [];
-    for (int i = 0; i < strokeCount; i++) {
-      final startEdge = rnd.nextInt(4);
-      Offset start;
-      switch (startEdge) {
-        case 0:
-          start = Offset(rnd.nextDouble() * size, 0);
-          break;
-        case 1:
-          start = Offset(size, rnd.nextDouble() * size);
-          break;
-        case 2:
-          start = Offset(rnd.nextDouble() * size, size);
-          break;
-        default:
-          start = Offset(0, rnd.nextDouble() * size);
-      }
-      final end = Offset(
-        size * 0.5 + (rnd.nextDouble() - 0.5) * size * 1.2,
-        size * 0.5 + (rnd.nextDouble() - 0.5) * size * 1.2,
-      );
-      final control = Offset(
-        (start.dx + end.dx) / 2 + (rnd.nextDouble() - 0.5) * size * 0.6,
-        (start.dy + end.dy) / 2 + (rnd.nextDouble() - 0.5) * size * 0.6,
-      );
-      final path = Path()
-        ..moveTo(start.dx, start.dy)
-        ..quadraticBezierTo(control.dx, control.dy, end.dx, end.dy);
-      _strokes.add(path);
-      _staggerStart.add(i / strokeCount * 0.55);
-    }
   }
 
   Future<void> _loadImage() async {
@@ -82,12 +62,72 @@ class _ScratchRevealButterflyState extends State<ScratchRevealButterfly>
       final data = await rootBundle.load(widget.assetPath);
       final codec = await ui.instantiateImageCodec(data.buffer.asUint8List());
       final frame = await codec.getNextFrame();
-      if (!mounted) return;
-      setState(() => _image = frame.image);
+      final image = frame.image;
+      final byteData = await image.toByteData(format: ui.ImageByteFormat.rawRgba);
+      if (!mounted || byteData == null) return;
+      final particles = _buildParticles(image, byteData);
+      setState(() {
+        _image = image;
+        _particles = particles;
+      });
     } catch (e) {
       if (!mounted) return;
       setState(() => _error = e);
     }
+  }
+
+  List<_Particle> _buildParticles(ui.Image image, ByteData byteData) {
+    final rnd = Random(11);
+    final imgW = image.width;
+    final imgH = image.height;
+    final imgSize = Size(imgW.toDouble(), imgH.toDouble());
+    final boxSize = Size(widget.height, widget.height);
+    final fitted = applyBoxFit(BoxFit.contain, imgSize, boxSize);
+    final destRect = Alignment.center.inscribe(fitted.destination, Offset.zero & boxSize);
+
+    final pixels = byteData.buffer.asUint8List();
+
+    Color? colorAt(int x, int y) {
+      if (x < 0 || y < 0 || x >= imgW || y >= imgH) return null;
+      final idx = (y * imgW + x) * 4;
+      final a = pixels[idx + 3];
+      if (a < 40) return null;
+      return Color.fromARGB(a, pixels[idx], pixels[idx + 1], pixels[idx + 2]);
+    }
+
+    final particles = <_Particle>[];
+    int attempts = 0;
+    final scatterRadius = widget.height * 0.9;
+    final center = Offset(widget.height / 2, widget.height / 2);
+
+    while (particles.length < _particleCount && attempts < _particleCount * 40) {
+      attempts++;
+      final sx = rnd.nextInt(imgW);
+      final sy = rnd.nextInt(imgH);
+      final color = colorAt(sx, sy);
+      if (color == null) continue;
+
+      final u = sx / imgW;
+      final v = sy / imgH;
+      final target = Offset(
+        destRect.left + u * destRect.width,
+        destRect.top + v * destRect.height,
+      );
+
+      final angle = rnd.nextDouble() * 2 * pi;
+      final dist = scatterRadius * (0.4 + rnd.nextDouble() * 0.9);
+      final start = center + Offset(cos(angle), sin(angle)) * dist;
+
+      particles.add(_Particle(
+        start: start,
+        target: target,
+        color: color,
+        radius: 1.3 + rnd.nextDouble() * 1.4,
+        stagger: rnd.nextDouble() * 0.35,
+      ));
+    }
+
+    return particles;
   }
 
   @override
@@ -109,7 +149,7 @@ class _ScratchRevealButterflyState extends State<ScratchRevealButterfly>
       child: AnimatedBuilder(
         animation: _controller,
         builder: (context, _) {
-          if (_image == null) {
+          if (_image == null || _particles == null) {
             return const Center(
               child: SizedBox(
                 width: 28,
@@ -120,11 +160,11 @@ class _ScratchRevealButterflyState extends State<ScratchRevealButterfly>
           }
           return CustomPaint(
             size: Size(widget.height, widget.height),
-            painter: _ScratchPainter(
+            painter: _ParticlePainter(
               image: _image!,
+              particles: _particles!,
               progress: _controller.value,
-              strokes: _strokes,
-              staggerStart: _staggerStart,
+              assembleEnd: _assembleEnd,
             ),
           );
         },
@@ -133,51 +173,41 @@ class _ScratchRevealButterflyState extends State<ScratchRevealButterfly>
   }
 }
 
-class _ScratchPainter extends CustomPainter {
+class _ParticlePainter extends CustomPainter {
   final ui.Image image;
+  final List<_Particle> particles;
   final double progress;
-  final List<Path> strokes;
-  final List<double> staggerStart;
+  final double assembleEnd;
 
-  _ScratchPainter({
+  _ParticlePainter({
     required this.image,
+    required this.particles,
     required this.progress,
-    required this.strokes,
-    required this.staggerStart,
+    required this.assembleEnd,
   });
 
   @override
   void paint(Canvas canvas, Size size) {
-    if (progress >= 0.999) {
-      _drawImageContain(canvas, size, Paint());
-      return;
-    }
+    final paint = Paint()..style = PaintingStyle.fill;
 
-    canvas.saveLayer(Offset.zero & size, Paint());
-
-    final strokePaint = Paint()
-      ..color = Colors.white
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round
-      ..strokeWidth = size.width * 0.22;
-
-    for (int i = 0; i < strokes.length; i++) {
-      final denom = (1 - staggerStart[i]);
-      final localProgress = denom <= 0
+    for (final p in particles) {
+      final denom = (assembleEnd - p.stagger);
+      final local = denom <= 0
           ? 1.0
-          : ((progress - staggerStart[i]) / denom).clamp(0.0, 1.0);
-      if (localProgress <= 0) continue;
-      final metric = strokes[i].computeMetrics().first;
-      final extractLength = metric.length * Curves.easeOut.transform(localProgress);
-      final subPath = metric.extractPath(0, extractLength);
-      canvas.drawPath(subPath, strokePaint);
+          : ((progress - p.stagger) / denom).clamp(0.0, 1.0);
+      final eased = Curves.easeOutCubic.transform(local);
+      final pos = Offset.lerp(p.start, p.target, eased)!;
+      final radius = p.radius * (1.0 + (1 - eased) * 0.6);
+      paint.color = p.color;
+      canvas.drawCircle(pos, radius, paint);
     }
 
-    final imagePaint = Paint()..blendMode = BlendMode.srcIn;
-    _drawImageContain(canvas, size, imagePaint);
-
-    canvas.restore();
+    if (progress > assembleEnd) {
+      final fadeT = ((progress - assembleEnd) / (1 - assembleEnd)).clamp(0.0, 1.0);
+      final imgOpacity = Curves.easeIn.transform(fadeT);
+      final imgPaint = Paint()..color = Colors.white.withValues(alpha: imgOpacity);
+      _drawImageContain(canvas, size, imgPaint);
+    }
   }
 
   void _drawImageContain(Canvas canvas, Size size, Paint paint) {
@@ -189,6 +219,6 @@ class _ScratchPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant _ScratchPainter oldDelegate) =>
+  bool shouldRepaint(covariant _ParticlePainter oldDelegate) =>
       oldDelegate.progress != progress || oldDelegate.image != image;
 }
