@@ -44,14 +44,14 @@ class _ScratchRevealButterflyState extends State<ScratchRevealButterfly>
   List<_Particle>? _particles;
 
   static const int _particleCount = 450;
-  static const double _assembleEnd = 0.82;
+  static const double _assembleEnd = 0.88;
 
   @override
   void initState() {
     super.initState();
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 2000),
+      duration: const Duration(milliseconds: 3400),
     );
     _loadImage();
     _controller.forward();
@@ -123,7 +123,7 @@ class _ScratchRevealButterflyState extends State<ScratchRevealButterfly>
         target: target,
         color: color,
         radius: 1.3 + rnd.nextDouble() * 1.4,
-        stagger: rnd.nextDouble() * 0.35,
+        stagger: rnd.nextDouble() * 0.55,
       ));
     }
 
