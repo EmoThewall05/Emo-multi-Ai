@@ -151,39 +151,47 @@ class AiChatService {
       final apiKey = await fetchApiKey(provider.id);
       if (apiKey == null || apiKey.isEmpty) continue;
 
+      const maxRetries = 3;
       const retryDelayMs = 2000;
 
-      try {
-        return await sendMessage(
-          provider: provider,
-          apiKey: apiKey,
-          history: history,
-          message: message,
-        );
-      } catch (e) {
-        if (_isTransientServerError(e)) {
-          // Same provider, one quick retry after a short delay — 503s are
-          // often gone within a couple of seconds.
+      Object? providerError;
+      bool succeededOrNonTransient = false;
+      String? result;
+
+      for (int attempt = 0; attempt <= maxRetries; attempt++) {
+        if (attempt > 0) {
           await Future.delayed(const Duration(milliseconds: retryDelayMs));
-          try {
-            return await sendMessage(
-              provider: provider,
-              apiKey: apiKey,
-              history: history,
-              message: message,
-            );
-          } catch (e2) {
-            lastError = e2;
-            if (_isTransientServerError(e2)) {
-              continue; // move on to the next provider
-            }
-            rethrow;
+        }
+        try {
+          result = await sendMessage(
+            provider: provider,
+            apiKey: apiKey,
+            history: history,
+            message: message,
+          );
+          succeededOrNonTransient = true;
+          break;
+        } catch (e) {
+          providerError = e;
+          if (!_isTransientServerError(e)) {
+            succeededOrNonTransient = true; // stop retrying, will rethrow below
+            break;
           }
-        } else {
-          lastError = e;
-          rethrow;
+          // else: transient — loop again for another attempt
         }
       }
+
+      if (result != null) {
+        return result;
+      }
+      if (succeededOrNonTransient) {
+        // Non-transient error — don't try other providers, surface it now.
+        // ignore: only_throw_error
+        throw providerError!;
+      }
+      // Exhausted retries on this provider with only transient errors —
+      // record and move on to the next provider.
+      lastError = providerError;
     }
 
     throw Exception(
