@@ -12,6 +12,7 @@ import 'widgets/profile_tab.dart';
 import 'widgets/app_sidebar.dart';
 import 'widgets/add_key_dialog.dart';
 import 'models/ai_provider.dart';
+import 'screens/chat_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -87,6 +88,14 @@ class _VaultHomeScreenState extends State<VaultHomeScreen> {
 
   void _onKeyTap(BuildContext context, AiProvider provider) {
     showAddKeyDialog(context, provider);
+  }
+
+  void _onChatTap(BuildContext context, AiProvider provider) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => ChatScreen(provider: provider),
+      ),
+    );
   }
 
   void _scrollToCategory(String category) {
@@ -176,6 +185,7 @@ class _VaultHomeScreenState extends State<VaultHomeScreen> {
               SliverToBoxAdapter(
                 child: VaultCardGrid(
                   onAddKey: (provider) => _onKeyTap(context, provider),
+                  onOpenChat: (provider) => _onChatTap(context, provider),
                 ),
               ),
             ],
