@@ -109,7 +109,7 @@ class AiChatService {
   static Future<String> _callGemini(
       String apiKey, List<Map<String, String>> messages) async {
     final uri = Uri.parse(
-        'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=$apiKey');
+        'https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=$apiKey
 
     final contents = messages
         .map((m) => {
