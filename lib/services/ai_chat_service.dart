@@ -1,350 +1,247 @@
-import 'dart:math';
-import 'package:flutter/material.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/ai_provider.dart';
-import '../services/ai_chat_service.dart';
+import 'key_encryptor.dart';
 
-class ChatScreen extends StatefulWidget {
-  final AiProvider provider;
-  const ChatScreen({super.key, required this.provider});
-
-  @override
-  State<ChatScreen> createState() => _ChatScreenState();
+/// Simple chat message model shared with the UI layer.
+class ChatMessage {
+  final String role; // 'user' | 'assistant'
+  final String text;
+  ChatMessage({required this.role, required this.text});
 }
 
-class _ChatScreenState extends State<ChatScreen> {
-  final TextEditingController _controller = TextEditingController();
-  final ScrollController _scrollController = ScrollController();
-  final List<ChatMessage> _messages = [];
+class AiChatService {
+  static final SupabaseClient _supa = Supabase.instance.client;
 
-  String? _apiKey;
-  bool _loadingKey = true;
-  bool _sending = false;
-  String? _error;
+  // ---------------------------------------------------------------------
+  // API KEY STORAGE (Supabase table: api_keys)
+  // columns: user_id (uuid), provider_id (text), encrypted_key (text), updated_at (timestamptz)
+  // ---------------------------------------------------------------------
 
-  @override
-  void initState() {
-    super.initState();
-    _loadKey();
-  }
-
-  Future<void> _loadKey() async {
-    final key = await AiChatService.fetchApiKey(widget.provider.id);
-    if (!mounted) return;
-    setState(() {
-      _apiKey = key;
-      _loadingKey = false;
-      if (key == null) {
-        _error = 'No API key saved for ${widget.provider.name} yet.';
-      }
-    });
-  }
-
-  Future<void> _send() async {
-    final text = _controller.text.trim();
-    if (text.isEmpty || _apiKey == null || _sending) return;
-
-    setState(() {
-      _messages.add(ChatMessage(role: 'user', text: text));
-      _controller.clear();
-      _sending = true;
-      _error = null;
-    });
-    _scrollToBottom();
+  static Future<String?> fetchApiKey(String providerId) async {
+    final user = _supa.auth.currentUser;
+    if (user == null) return null;
 
     try {
-      final reply = await AiChatService.sendMessage(
-        provider: widget.provider,
-        apiKey: _apiKey!,
-        history: _messages.sublist(0, _messages.length - 1),
-        message: text,
-      );
-      if (!mounted) return;
-      setState(() {
-        _messages.add(ChatMessage(role: 'assistant', text: reply));
-        _sending = false;
-      });
+      final row = await _supa
+          .from('api_keys')
+          .select('encrypted_key')
+          .eq('user_id', user.id)
+          .eq('provider_id', providerId)
+          .maybeSingle();
+
+      if (row == null || row['encrypted_key'] == null) return null;
+
+      return KeyEncryptor.decrypt(row['encrypted_key'] as String, user.id);
     } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _error = e.toString();
-        _sending = false;
-      });
+      // ignore: avoid_print
+      print('fetchApiKey failed for $providerId: $e');
+      return null;
     }
-    _scrollToBottom();
   }
 
-  void _scrollToBottom() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_scrollController.hasClients) {
-        _scrollController.animateTo(
-          _scrollController.position.maxScrollExtent + 80,
-          duration: const Duration(milliseconds: 250),
-          curve: Curves.easeOut,
-        );
-      }
-    });
+  static Future<void> saveApiKey(String providerId, String plainKey) async {
+    final user = _supa.auth.currentUser;
+    if (user == null) throw Exception('Not signed in');
+
+    final encrypted = KeyEncryptor.encrypt(plainKey, user.id);
+
+    await _supa.from('api_keys').upsert({
+      'user_id': user.id,
+      'provider_id': providerId,
+      'encrypted_key': encrypted,
+      'updated_at': DateTime.now().toIso8601String(),
+    }, onConflict: 'user_id,provider_id');
   }
 
-  @override
-  void dispose() {
-    _controller.dispose();
-    _scrollController.dispose();
-    super.dispose();
+  static Future<void> removeApiKey(String providerId) async {
+    final user = _supa.auth.currentUser;
+    if (user == null) return;
+    await _supa
+        .from('api_keys')
+        .delete()
+        .eq('user_id', user.id)
+        .eq('provider_id', providerId);
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final providerColor = Color(widget.provider.colorValue);
+  // ---------------------------------------------------------------------
+  // SEND MESSAGE — routes to the correct provider's REST API
+  // ---------------------------------------------------------------------
 
-    return Scaffold(
-      backgroundColor: const Color(0xFF0A0A14),
-      appBar: AppBar(
-        backgroundColor: const Color(0xFF0A0A14),
-        title: Row(
-          children: [
-            CircleAvatar(
-              radius: 14,
-              backgroundColor: providerColor.withOpacity(0.2),
-              child: Icon(Icons.smart_toy_outlined, color: providerColor, size: 16),
-            ),
-            const SizedBox(width: 10),
-            Text(widget.provider.name,
-                style: const TextStyle(color: Colors.white, fontSize: 16)),
-          ],
-        ),
-      ),
-      body: Stack(
-        children: [
-          // Dot-pattern background
-          Positioned.fill(
-            child: CustomPaint(
-              painter: _DotBackgroundPainter(dotColor: providerColor.withOpacity(0.08)),
-            ),
-          ),
-          SafeArea(
-            child: Column(
-              children: [
-                if (_loadingKey)
-                  const Expanded(
-                    child: Center(
-                      child: CircularProgressIndicator(color: Colors.white54),
-                    ),
-                  )
-                else
-                  Expanded(
-                    child: _messages.isEmpty && _error == null
-                        ? Center(
-                            child: Text(
-                              'Say hi to ${widget.provider.name} ðŸ‘‹',
-                              style: const TextStyle(color: Colors.white38),
-                            ),
-                          )
-                        : ListView.builder(
-                            controller: _scrollController,
-                            padding: const EdgeInsets.all(16),
-                            itemCount: _messages.length + (_sending ? 1 : 0),
-                            itemBuilder: (context, index) {
-                              if (index == _messages.length) {
-                                return _TypingIndicator(color: providerColor);
-                              }
-                              final msg = _messages[index];
-                              return _MessageBubble(
-                                message: msg,
-                                accentColor: providerColor,
-                              );
-                            },
-                          ),
-                  ),
-                if (_error != null)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                    child: Text(
-                      _error!,
-                      style: const TextStyle(color: Colors.redAccent, fontSize: 12),
-                    ),
-                  ),
-                _InputBar(
-                  controller: _controller,
-                  enabled: _apiKey != null && !_sending,
-                  accentColor: providerColor,
-                  onSend: _send,
-                ),
+  static Future<String> sendMessage({
+    required AiProvider provider,
+    required String apiKey,
+    required List<ChatMessage> history,
+    required String message,
+  }) async {
+    final messages = [
+      ...history.map((m) => {'role': m.role, 'content': m.text}),
+      {'role': 'user', 'content': message},
+    ];
+
+    switch (provider.id) {
+      case 'gemini':
+        return _callGemini(apiKey, messages);
+      case 'anthropic':
+        return _callAnthropic(apiKey, messages);
+      case 'openai':
+      case 'grok':
+      case 'deepseek':
+      case 'mistral':
+      case 'qwen':
+      case 'kimi':
+      case 'copilot':
+      case 'llama':
+        return _callOpenAiCompatible(provider.id, apiKey, messages);
+      case 'perplexity':
+        return _callPerplexity(apiKey, messages);
+      default:
+        throw Exception('${provider.name} chat is not supported yet.');
+    }
+  }
+
+  // ---------------------------------------------------------------------
+  // PROVIDER IMPLEMENTATIONS
+  // ---------------------------------------------------------------------
+
+  /// Google Gemini — generateContent REST endpoint.
+  static Future<String> _callGemini(
+      String apiKey, List<Map<String, String>> messages) async {
+    final uri = Uri.parse(
+        'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=$apiKey');
+
+    final contents = messages
+        .map((m) => {
+              'role': m['role'] == 'assistant' ? 'model' : 'user',
+              'parts': [
+                {'text': m['content']}
               ],
-            ),
-          ),
-        ],
-      ),
+            })
+        .toList();
+
+    final res = await http.post(
+      uri,
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'contents': contents}),
+    );
+
+    _checkOk(res, 'Gemini');
+    final data = jsonDecode(res.body);
+    return data['candidates']?[0]?['content']?['parts']?[0]?['text']
+            ?.toString() ??
+        '(empty response)';
+  }
+
+  /// Anthropic Claude — Messages API.
+  static Future<String> _callAnthropic(
+      String apiKey, List<Map<String, String>> messages) async {
+    final uri = Uri.parse('https://api.anthropic.com/v1/messages');
+
+    final res = await http.post(
+      uri,
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+      },
+      body: jsonEncode({
+        'model': 'claude-sonnet-4-6',
+        'max_tokens': 1024,
+        'messages': messages,
+      }),
+    );
+
+    _checkOk(res, 'Anthropic');
+    final data = jsonDecode(res.body);
+    final blocks = data['content'] as List?;
+    if (blocks == null || blocks.isEmpty) return '(empty response)';
+    return blocks
+        .where((b) => b['type'] == 'text')
+        .map((b) => b['text'] as String)
+        .join('\n');
+  }
+
+  /// Perplexity — OpenAI-compatible chat completions.
+  static Future<String> _callPerplexity(
+      String apiKey, List<Map<String, String>> messages) async {
+    return _postOpenAiStyle(
+      uri: Uri.parse('https://api.perplexity.ai/chat/completions'),
+      apiKey: apiKey,
+      model: 'sonar',
+      messages: messages,
+      label: 'Perplexity',
     );
   }
-}
 
-class _MessageBubble extends StatelessWidget {
-  final ChatMessage message;
-  final Color accentColor;
-  const _MessageBubble({required this.message, required this.accentColor});
-
-  @override
-  Widget build(BuildContext context) {
-    final isUser = message.role == 'user';
-    return Align(
-      alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
-      child: Container(
-        margin: const EdgeInsets.symmetric(vertical: 6),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
-        decoration: BoxDecoration(
-          color: isUser ? accentColor.withOpacity(0.18) : Colors.white.withOpacity(0.06),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(
-            color: isUser ? accentColor.withOpacity(0.4) : Colors.white12,
-          ),
-        ),
-        child: Text(message.text, style: const TextStyle(color: Colors.white, fontSize: 14)),
-      ),
+  /// OpenAI and every OpenAI-compatible provider (Grok, DeepSeek, Mistral,
+  /// Qwen, Kimi, Copilot, Llama endpoints all speak this same schema).
+  static Future<String> _callOpenAiCompatible(String providerId,
+      String apiKey, List<Map<String, String>> messages) async {
+    final config = _openAiCompatibleConfig[providerId]!;
+    return _postOpenAiStyle(
+      uri: Uri.parse(config.endpoint),
+      apiKey: apiKey,
+      model: config.model,
+      messages: messages,
+      label: config.label,
     );
   }
-}
 
-class _InputBar extends StatelessWidget {
-  final TextEditingController controller;
-  final bool enabled;
-  final Color accentColor;
-  final VoidCallback onSend;
-  const _InputBar({
-    required this.controller,
-    required this.enabled,
-    required this.accentColor,
-    required this.onSend,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
-      decoration: const BoxDecoration(
-        border: Border(top: BorderSide(color: Colors.white12)),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: TextField(
-              controller: controller,
-              enabled: enabled,
-              style: const TextStyle(color: Colors.white),
-              onSubmitted: (_) => onSend(),
-              decoration: InputDecoration(
-                hintText: enabled ? 'Type a message...' : 'Add an API key first',
-                hintStyle: const TextStyle(color: Colors.white38, fontSize: 13),
-                filled: true,
-                fillColor: Colors.white.withOpacity(0.05),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(24),
-                  borderSide: BorderSide.none,
-                ),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-              ),
-            ),
-          ),
-          const SizedBox(width: 8),
-          IconButton(
-            onPressed: enabled ? onSend : null,
-            icon: Icon(Icons.send_rounded, color: enabled ? accentColor : Colors.white24),
-          ),
-        ],
-      ),
+  static Future<String> _postOpenAiStyle({
+    required Uri uri,
+    required String apiKey,
+    required String model,
+    required List<Map<String, String>> messages,
+    required String label,
+  }) async {
+    final res = await http.post(
+      uri,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $apiKey',
+      },
+      body: jsonEncode({'model': model, 'messages': messages}),
     );
-  }
-}
 
-/// Three bouncing dots shown while waiting for the AI response.
-class _TypingIndicator extends StatefulWidget {
-  final Color color;
-  const _TypingIndicator({required this.color});
-
-  @override
-  State<_TypingIndicator> createState() => _TypingIndicatorState();
-}
-
-class _TypingIndicatorState extends State<_TypingIndicator>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 900),
-    )..repeat();
+    _checkOk(res, label);
+    final data = jsonDecode(res.body);
+    return data['choices']?[0]?['message']?['content']?.toString() ??
+        '(empty response)';
   }
 
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Align(
-      alignment: Alignment.centerLeft,
-      child: Container(
-        margin: const EdgeInsets.symmetric(vertical: 6),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.06),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: Colors.white12),
-        ),
-        child: AnimatedBuilder(
-          animation: _controller,
-          builder: (context, _) {
-            return Row(
-              mainAxisSize: MainAxisSize.min,
-              children: List.generate(3, (i) {
-                final t = (_controller.value - (i * 0.2)) % 1.0;
-                final bounce = t < 0 ? 0.0 : sin(t * pi).clamp(0.0, 1.0);
-                return Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 3),
-                  child: Transform.translate(
-                    offset: Offset(0, -4 * bounce),
-                    child: Container(
-                      width: 7,
-                      height: 7,
-                      decoration: BoxDecoration(
-                        color: widget.color,
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                  ),
-                );
-              }),
-            );
-          },
-        ),
-      ),
-    );
-  }
-}
-
-/// Subtle repeating dot-grid background for the chat screen.
-class _DotBackgroundPainter extends CustomPainter {
-  final Color dotColor;
-  const _DotBackgroundPainter({required this.dotColor});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()..color = dotColor;
-    const spacing = 22.0;
-    const radius = 1.4;
-    for (double y = 0; y < size.height; y += spacing) {
-      for (double x = 0; x < size.width; x += spacing) {
-        canvas.drawCircle(Offset(x, y), radius, paint);
-      }
+  static void _checkOk(http.Response res, String label) {
+    if (res.statusCode < 200 || res.statusCode >= 300) {
+      throw Exception('$label error ${res.statusCode}: ${res.body}');
     }
   }
-
-  @override
-  bool shouldRepaint(covariant _DotBackgroundPainter oldDelegate) =>
-      oldDelegate.dotColor != dotColor;
 }
+
+/// Endpoint + default model for each OpenAI-schema-compatible provider.
+class _OpenAiCompatConfig {
+  final String endpoint;
+  final String model;
+  final String label;
+  const _OpenAiCompatConfig(this.endpoint, this.model, this.label);
+}
+
+const Map<String, _OpenAiCompatConfig> _openAiCompatibleConfig = {
+  'openai': _OpenAiCompatConfig(
+      'https://api.openai.com/v1/chat/completions', 'gpt-4o', 'OpenAI'),
+  'grok': _OpenAiCompatConfig(
+      'https://api.x.ai/v1/chat/completions', 'grok-4', 'Grok'),
+  'deepseek': _OpenAiCompatConfig(
+      'https://api.deepseek.com/chat/completions', 'deepseek-chat', 'DeepSeek'),
+  'mistral': _OpenAiCompatConfig(
+      'https://api.mistral.ai/v1/chat/completions', 'mistral-large-latest', 'Mistral'),
+  'qwen': _OpenAiCompatConfig(
+      'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions',
+      'qwen-plus',
+      'Qwen'),
+  'kimi': _OpenAiCompatConfig(
+      'https://api.moonshot.cn/v1/chat/completions', 'moonshot-v1-8k', 'Kimi'),
+  'copilot': _OpenAiCompatConfig(
+      'https://api.githubcopilot.com/chat/completions', 'gpt-4o', 'GitHub Copilot'),
+  'llama': _OpenAiCompatConfig(
+      'https://api.llama.com/v1/chat/completions', 'llama-4', 'Meta Llama'),
+};
