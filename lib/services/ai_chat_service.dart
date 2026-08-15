@@ -151,6 +151,8 @@ class AiChatService {
       final apiKey = await fetchApiKey(provider.id);
       if (apiKey == null || apiKey.isEmpty) continue;
 
+      const retryDelayMs = 2000;
+
       try {
         return await sendMessage(
           provider: provider,
@@ -159,11 +161,28 @@ class AiChatService {
           message: message,
         );
       } catch (e) {
-        lastError = e;
         if (_isTransientServerError(e)) {
-          continue;
+          // Same provider, one quick retry after a short delay — 503s are
+          // often gone within a couple of seconds.
+          await Future.delayed(const Duration(milliseconds: retryDelayMs));
+          try {
+            return await sendMessage(
+              provider: provider,
+              apiKey: apiKey,
+              history: history,
+              message: message,
+            );
+          } catch (e2) {
+            lastError = e2;
+            if (_isTransientServerError(e2)) {
+              continue; // move on to the next provider
+            }
+            rethrow;
+          }
+        } else {
+          lastError = e;
+          rethrow;
         }
-        rethrow;
       }
     }
 
