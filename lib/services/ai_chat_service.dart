@@ -15,7 +15,7 @@ class AiChatService {
   static final SupabaseClient _supa = Supabase.instance.client;
 
   // ---------------------------------------------------------------------
-  // API KEY STORAGE (Supabase table: api_keys)
+  // API KEY STORAGE (Supabase table: user_api_keys)
   // columns: user_id (uuid), provider_id (text), encrypted_key (text), updated_at (timestamptz)
   // ---------------------------------------------------------------------
 
@@ -25,7 +25,7 @@ class AiChatService {
 
     try {
       final row = await _supa
-          .from('api_keys')
+          .from('user_api_keys')
           .select('encrypted_key')
           .eq('user_id', user.id)
           .eq('provider_id', providerId)
@@ -47,7 +47,7 @@ class AiChatService {
 
     final encrypted = KeyEncryptor.encrypt(plainKey, user.id);
 
-    await _supa.from('api_keys').upsert({
+    await _supa.from('user_api_keys').upsert({
       'user_id': user.id,
       'provider_id': providerId,
       'encrypted_key': encrypted,
@@ -59,7 +59,7 @@ class AiChatService {
     final user = _supa.auth.currentUser;
     if (user == null) return;
     await _supa
-        .from('api_keys')
+        .from('user_api_keys')
         .delete()
         .eq('user_id', user.id)
         .eq('provider_id', providerId);
