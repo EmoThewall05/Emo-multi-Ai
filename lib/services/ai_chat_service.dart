@@ -102,6 +102,77 @@ class AiChatService {
   }
 
   // ---------------------------------------------------------------------
+  // SEND MESSAGE WITH AUTOMATIC FALLBACK
+  // ---------------------------------------------------------------------
+
+  static const List<String> _fallbackOrder = [
+    'gemini',
+    'anthropic',
+    'openai',
+    'grok',
+    'deepseek',
+    'mistral',
+    'perplexity',
+    'qwen',
+    'kimi',
+    'llama',
+    'copilot',
+  ];
+
+  static bool _isTransientServerError(Object e) {
+    final msg = e.toString();
+    return msg.contains(' 500') ||
+        msg.contains(' 502') ||
+        msg.contains(' 503') ||
+        msg.contains(' 504') ||
+        msg.toLowerCase().contains('unavailable') ||
+        msg.toLowerCase().contains('high demand');
+  }
+
+  static Future<String> sendMessageWithFallback({
+    required AiProvider primaryProvider,
+    required List<AiProvider> allProviders,
+    required List<ChatMessage> history,
+    required String message,
+  }) async {
+    final tried = <String>{};
+    final candidates = <AiProvider>[
+      primaryProvider,
+      for (final id in _fallbackOrder)
+        ...allProviders.where((p) => p.id == id && p.id != primaryProvider.id),
+    ];
+
+    Object? lastError;
+
+    for (final provider in candidates) {
+      if (tried.contains(provider.id)) continue;
+      tried.add(provider.id);
+
+      final apiKey = await fetchApiKey(provider.id);
+      if (apiKey == null || apiKey.isEmpty) continue;
+
+      try {
+        return await sendMessage(
+          provider: provider,
+          apiKey: apiKey,
+          history: history,
+          message: message,
+        );
+      } catch (e) {
+        lastError = e;
+        if (_isTransientServerError(e)) {
+          continue;
+        }
+        rethrow;
+      }
+    }
+
+    throw Exception(
+      'All available providers failed. Last error: ${lastError ?? "no providers had a saved API key"}',
+    );
+  }
+
+  // ---------------------------------------------------------------------
   // PROVIDER IMPLEMENTATIONS
   // ---------------------------------------------------------------------
 

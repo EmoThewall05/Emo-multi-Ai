@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/ai_provider.dart';
 import '../services/ai_chat_service.dart';
+import '../data/provider_data.dart';
 
 class ChatScreen extends StatefulWidget {
   final AiProvider provider;
@@ -59,9 +60,9 @@ class _ChatScreenState extends State<ChatScreen> {
     _scrollToBottom();
 
     try {
-      final reply = await AiChatService.sendMessage(
-        provider: widget.provider,
-        apiKey: _apiKey!,
+      final reply = await AiChatService.sendMessageWithFallback(
+        primaryProvider: widget.provider,
+        allProviders: aiProviders,
         history: _messages.sublist(0, _messages.length - 1),
         message: text,
       );
