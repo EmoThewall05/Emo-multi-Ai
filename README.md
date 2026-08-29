@@ -1,12 +1,3 @@
-Skip to content
-Emo-multi-Ai
-Repository navigation
-Code
-Issues
-Pull requests
-Agents
-Multi level Ai platforms
-
 # 🦋 EmoMulti AI Studio
 
 A sovereign, multi-AI vault app — one account, every provider, your own keys.
